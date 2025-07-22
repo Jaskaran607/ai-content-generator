@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Content Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #7c3aed;
+            --text: #1e293b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --nav-bg: rgba(248, 250, 252, 0.96);
+        }
+
+        .dark-mode {
+            --primary: #818cf8;
+            --secondary: #a78bfa;
+            --text: #e2e8f0;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --nav-bg: rgba(15, 23, 42, 0.96);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            transition: all 0.3s ease;
+        }
+
+        .content-output {
+            min-height: 200px;
+        }
+
+        .token-counter {
+            transition: all 0.3s ease;
+        }
+
+        /* Loader animation */
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Tooltip styling */
+        .tooltip {
+            position: relative;
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: var(--card-bg);
+            color: var(--text);
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        /* Animation for generated content */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <!-- Navigation -->
+        <nav class="fixed top-0 w-full bg-gray-800 text-white p-4 z-50 shadow-lg">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-robot text-2xl text-indigo-400"></i>
+                    <h1 class="text-xl font-bold">AI Content Genius</h1>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <!-- Theme toggle -->
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-700">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    
+                    <!-- User section - shows when logged in -->
+                    <div id="user-section" class="hidden">
+                        <div class="flex items-center space-x-2 cursor-pointer relative" id="user-menu-button">
+                            <img src="https://placehold.co/40x40" alt="User profile picture" class="w-8 h-8 rounded-full border-2 border-indigo-400">
+                            <span class="hidden md:inline">John Doe</span>
+                            <span id="token-count" class="bg-indigo-600 text-xs px-2 py-1 rounded-full">1000 tokens</span>
+                        </div>
+                        <div id="user-dropdown" class="hidden absolute right-4 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50">
+                            <a href="#" class="block px-4 py-2 text-sm hover:bg-gray-600">Dashboard</a>
+                            <a href="#" class="block px-4 py-2 text-sm hover:bg-gray-600">History</a>
+                            <a href="#" class="block px-4 py-2 text-sm hover:bg-gray-600">Settings</a>
+                            <hr class="border-gray-600 my-1">
+                            <a href="#" id="logout-btn" class="block px-4 py-2 text-sm hover:bg-gray-600">Logout</a>
+                        </div>
+                    </div>
+                    
+                    <!-- Auth buttons - shows when logged out -->
+                    <div id="auth-buttons">
+                        <button id="login-btn" class="px-4 py-2 rounded-lg hover:text-indigo-300">Login</button>
+                        <button id="register-btn" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg">Sign Up</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="pt-20 pb-10 min-h-screen">
+            <div class="container mx-auto px-4">
+                <!-- Hero Section -->
+                <section class="py-12 text-center">
+                    <h1 class="text-4xl md:text-5xl font-bold mb-6">AI-Powered Content Creation</h1>
+                    <p class="text-xl text-gray-400 mb-8 max-w-3xl mx-auto">
+                        Generate high-quality content in seconds with our advanced AI models. Perfect for blogs, ads, emails, and more.
+                    </p>
+                    <div class="flex justify-center space-x-4">
+                        <button class="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-medium">
+                            Start Generating <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                        <button class="border border-indigo-600 text-indigo-600 hover:bg-indigo-900 hover:text-white px-6 py-3 rounded-lg font-medium">
+                            View Examples
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Generator Section -->
+                <section class="mt-12 max-w-5xl mx-auto bg-gray-800 rounded-xl shadow-xl overflow-hidden">
+                    <div class="p-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-t-xl"></div>
+                    
+                    <div class="p-6 bg-gray-800 rounded-b-xl">
+                        <!-- Content Type Selection -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium mb-2">Generate Content For:</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="content-type-btn active px-4 py-2 bg-indigo-600 text-white rounded-lg">Blog Post</button>
+                                <button class="content-type-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Marketing Copy</button>
+                                <button class="content-type-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Product Description</button>
+                                <button class="content-type-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Social Media Post</button>
+                                <button class="content-type-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Email</button>
+                            </div>
+                        </div>
+
+                        <!-- Prompt Input -->
+                        <div class="mb-6">
+                            <label for="prompt" class="block text-sm font-medium mb-2">
+                                Describe what you want to generate 
+                                <span class="text-gray-400">(be as specific as possible)</span>
+                            </label>
+                            <textarea 
+                                id="prompt" 
+                                rows="4" 
+                                class="w-full p-4 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="e.g., Write a 500-word blog post about the benefits of sustainable energy for small businesses..."></textarea>
+                        </div>
+
+                        <!-- Advanced Options (Collapsible) -->
+                        <div class="mb-6">
+                            <div class="flex items-center mb-2 cursor-pointer" id="advanced-options-toggle">
+                                <span class="mr-2"><i class="fas fa-cogs text-indigo-400"></i></span>
+                                <span class="font-medium">Advanced Options</span>
+                                <span class="ml-auto"><i class="fas fa-chevron-down"></i></span>
+                            </div>
+                            <div id="advanced-options" class="hidden bg-gray-700 p-4 rounded-lg">
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Creativity Level</label>
+                                        <select class="w-full p-2 bg-gray-600 border border-gray-500 rounded-lg">
+                                            <option value="0.7">Balanced (Recommended)</option>
+                                            <option value="0.5">More Factual</option>
+                                            <option value="0.9">More Creative</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Output Length</label>
+                                        <select class="w-full p-2 bg-gray-600 border border-gray-500 rounded-lg">
+                                            <option value="medium">Medium (~500 words)</option>
+                                            <option value="short">Short (~200 words)</option>
+                                            <option value="long">Long (~1000 words)</option>
+                                            <option value="custom">Custom</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium mb-2">Tone</label>
+                                        <select class="w-full p-2 bg-gray-600 border border-gray-500 rounded-lg">
+                                            <option value="professional">Professional</option>
+                                            <option value="casual">Casual</option>
+                                            <option value="friendly">Friendly</option>
+                                            <option value="authoritative">Authoritative</option>
+                                            <option value="humorous">Humorous</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="form-checkbox h-4 w-4 text-indigo-600">
+                                        <span class="ml-2 text-sm">Include SEO keywords automatically</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Generate Button -->
+                        <div class="flex justify-between items-center">
+                            <div id="token-counter" class="text-sm font-medium px-4 py-2 rounded-lg bg-gray-700">
+                                Estimated tokens: <span class="font-bold text-indigo-400">50</span>
+                            </div>
+                            <button 
+                                id="generate-btn"
+                                class="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 rounded-lg font-medium flex items-center">
+                                <span id="generate-text">Generate Content</span>
+                                <span id="generate-loader" class="loader ml-2 hidden"></span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Result Section -->
+                <section class="mt-10 bg-gray-800 rounded-xl shadow-xl overflow-hidden">
+                    <div class="flex justify-between items-center p-4 bg-gray-700 border-b border-gray-600">
+                        <h2 class="font-bold">Generated Content</h2>
+                        <div class="flex space-x-2">
+                            <button 
+                                id="copy-btn"
+                                class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg tooltip"
+                                title="Copy to clipboard">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button 
+                                id="download-btn"
+                                class="p-2 bg-gray-600 hover:bg-gray-500 rounded-lg tooltip"
+                                title="Download as file">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <button 
+                                id="save-btn"
+                                class="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg tooltip"
+                                title="Save to your account">
+                                <i class="fas fa-save"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="content-output" class="content-output p-6 bg-gray-800 rounded-b-xl min-h-64">
+                        <div class="text-gray-500 text-center py-16">
+                            <i class="fas fa-robot text-4xl mb-4"></i>
+                            <p>Your generated content will appear here.</p>
+                            <p class="text-sm mt-2">Describe what you need and click "Generate Content".</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Features Section -->
+                <section class="mt-16">
+                    <h2 class="text-3xl font-bold text-center mb-12">Powerful AI Content Creation</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-gray-800 p-6 rounded-xl">
+                            <div class="text-indigo-400 text-3xl mb-4">
+                                <i class="fas fa-bolt"></i>
+                            </div>
+                            <h3 class="text-xl font-bold mb-2">Lightning Fast</h3>
+                            <p class="text-gray-400">Generate high-quality content in seconds, not hours. Our AI models deliver results almost instantly.</p>
+                        </div>
+                        <div class="bg-gray-800 p-6 rounded-xl">
+                            <div class="text-indigo-400 text-3xl mb-4">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <h3 class="text-xl font-bold mb-2">Smart Customization</h3>
+                            <p class="text-gray-400">Fine-tune tone, style, and length to perfectly match your brand voice and audience.</p>
+                        </div>
+                        <div class="bg-gray-800 p-6 rounded-xl">
+                            <div class="text-indigo-400 text-3xl mb-4">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h3 class="text-xl font-bold mb-2">Performance Tracking</h3>
+                            <p class="text-gray-400">Monitor usage, track your token consumption, and optimize your content strategy.</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Auth Modals -->
+        <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Welcome Back</h2>
+                    <button class="text-2xl hover:text-gray-400" id="close-login-modal">&times;</button>
+                </div>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input 
+                            type="email" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="you@example.com"
+                            required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input 
+                            type="password" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="••••••••"
+                            required>
+                    </div>
+                    <div class="flex items-center justify-between mb-6">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="form-checkbox h-4 w-4 text-indigo-600">
+                            <span class="ml-2 text-sm">Remember me</span>
+                        </label>
+                        <a href="#" class="text-sm text-indigo-400 hover:underline">Forgot password?</a>
+                    </div>
+                    <button 
+                        type="submit"
+                        class="w-full p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 rounded-lg font-medium mb-4">
+                        Login
+                    </button>
+                    <p class="text-center text-sm">
+                        Don't have an account? 
+                        <a href="#" class="text-indigo-400 hover:underline" id="show-register">Sign up</a>
+                    </p>
+                </form>
+                <div class="mt-6 pt-6 border-t border-gray-700">
+                    <p class="text-center text-sm mb-4">Or login with</p>
+                    <div class="flex justify-center space-x-4">
+                        <button class="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
+                            <i class="fab fa-google text-red-400"></i>
+                        </button>
+                        <button class="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
+                            <i class="fab fa-github"></i>
+                        </button>
+                        <button class="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
+                            <i class="fab fa-facebook-f text-blue-400"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="register-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Create Account</h2>
+                    <button class="text-2xl hover:text-gray-400" id="close-register-modal">&times;</button>
+                </div>
+                <form id="register-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">First Name</label>
+                            <input 
+                                type="text" 
+                                class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="John"
+                                required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Last Name</label>
+                            <input 
+                                type="text" 
+                                class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                placeholder="Doe"
+                                required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input 
+                            type="email" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="you@example.com"
+                            required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input 
+                            type="password" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="••••••••"
+                            required>
+                        <p class="text-xs text-gray-400 mt-1">Minimum 8 characters with at least one number</p>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Confirm Password</label>
+                        <input 
+                            type="password" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="••••••••"
+                            required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="form-checkbox h-4 w-4 text-indigo-600" required>
+                            <span class="ml-2 text-sm">
+                                I agree to the <a href="#" class="text-indigo-400 hover:underline">Terms of Service</a> and 
+                                <a href="#" class="text-indigo-400 hover:underline">Privacy Policy</a>
+                            </span>
+                        </label>
+                    </div>
+                    <button 
+                        type="submit"
+                        class="w-full p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 rounded-lg font-medium mb-4">
+                        Create Account
+                    </button>
+                    <p class="text-center text-sm">
+                        Already have an account? 
+                        <a href="#" class="text-indigo-400 hover:underline" id="show-login">Login</a>
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Save Content Modal -->
+        <div id="save-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Save Generated Content</h2>
+                    <button class="text-2xl hover:text-gray-400" id="close-save-modal">&times;</button>
+                </div>
+                <form>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Title</label>
+                        <input 
+                            type="text" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="e.g., Blog post about renewable energy"
+                            required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Project</label>
+                        <select class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Select project</option>
+                            <option value="1">Blog Content</option>
+                            <option value="2">Marketing Assets</option>
+                            <option value="3">Social Media</option>
+                            <option value="4">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Tags (optional)</label>
+                        <input 
+                            type="text" 
+                            class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            placeholder="e.g., tech, sustainability, business">
+                    </div>
+                    <button 
+                        type="submit"
+                        class="w-full p-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 rounded-lg font-medium">
+                        Save Content
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="bg-gray-900 text-gray-400 py-12">
+            <div class="container mx-auto px-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-4">AI Content Genius</h3>
+                        <p class="mb-4">Generate high-quality content in seconds with our advanced AI models.</p>
+                        <div class="flex space-x-4">
+                            <a href="#" class="hover:text-white"><i class="fab fa-twitter"></i></a>
+                            <a href="#" class="hover:text-white"><i class="fab fa-facebook-f"></i></a>
+                            <a href="#" class="hover:text-white"><i class="fab fa-linkedin-in"></i></a>
+                            <a href="#" class="hover:text-white"><i class="fab fa-instagram"></i></a>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-4">Product</h3>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="hover:text-white">Features</a></li>
+                            <li><a href="#" class="hover:text-white">Pricing</a></li>
+                            <li><a href="#" class="hover:text-white">Use Cases</a></li>
+                            <li><a href="#" class="hover:text-white">API</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-4">Resources</h3>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="hover:text-white">Documentation</a></li>
+                            <li><a href="#" class="hover:text-white">Blog</a></li>
+                            <li><a href="#" class="hover:text-white">Community</a></li>
+                            <li><a href="#" class="hover:text-white">Support</a></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-white mb-4">Company</h3>
+                        <ul class="space-y-2">
+                            <li><a href="#" class="hover:text-white">About Us</a></li>
+                            <li><a href="#" class="hover:text-white">Careers</a></li>
+                            <li><a href="#" class="hover:text-white">Privacy Policy</a></li>
+                            <li><a href="#" class="hover:text-white">Terms of Service</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="border-t border-gray-800 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center">
+                    <p>© 2023 AI Content Genius. All rights reserved.</p>
+                    <div class="flex space-x-6 mt-4 md:mt-0">
+                        <a href="#" class="hover:text-white">Privacy</a>
+                        <a href="#" class="hover:text-white">Terms</a>
+                        <a href="#" class="hover:text-white">Cookies</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Theme toggle functionality
+        document.getElementById('theme-toggle').addEventListener('click', function() {
+            document.documentElement.classList.toggle('dark-mode');
+            const icon = this.querySelector('i');
+            if (document.documentElement.classList.contains('dark-mode')) {
+                icon.classList.replace('fa-moon', 'fa-sun');
+            } else {
+                icon.classList.replace('fa-sun', 'fa-moon');
+            }
+        });
+
+        // Simulate user authentication (would be replaced with real auth in production)
+        let isLoggedIn = false;
+
+        // Toggle auth/user section
+        function toggleAuthUI() {
+            const userSection = document.getElementById('user-section');
+            const authButtons = document.getElementById('auth-buttons');
+            
+            if (isLoggedIn) {
+                userSection.classList.remove('hidden');
+                authButtons.classList.add('hidden');
+            } else {
+                userSection.classList.add('hidden');
+                authButtons.classList.remove('hidden');
+            }
+        }
+
+        // Setup event listeners for auth buttons
+        document.getElementById('login-btn').addEventListener('click', function() {
+            document.getElementById('login-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('register-btn').addEventListener('click', function() {
+            document.getElementById('register-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', function() {
+            isLoggedIn = false;
+            toggleAuthUI();
+        });
+
+        document.getElementById('close-login-modal').addEventListener('click', function() {
+            document.getElementById('login-modal').classList.add('hidden');
+        });
+
+        document.getElementById('close-register-modal').addEventListener('click', function() {
+            document.getElementById('register-modal').classList.add('hidden');
+        });
+
+        document.getElementById('show-register').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('register-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('show-login').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('register-modal').classList.add('hidden');
+            document.getElementById('login-modal').classList.remove('hidden');
+        });
+
+        // Simulate form submissions
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            isLoggedIn = true;
+            toggleAuthUI();
+            document.getElementById('login-modal').classList.add('hidden');
+        });
+
+        document.getElementById('register-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            isLoggedIn = true;
+            toggleAuthUI();
+            document.getElementById('register-modal').classList.add('hidden');
+        });
+
+        // User dropdown menu
+        document.getElementById('user-menu-button').addEventListener('click', function() {
+            document.getElementById('user-dropdown').classList.toggle('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#user-section')) {
+                document.getElementById('user-dropdown').classList.add('hidden');
+            }
+        });
+
+        // Content type selection
+        const contentTypeButtons = document.querySelectorAll('.content-type-btn');
+        contentTypeButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                contentTypeButtons.forEach(btn => btn.classList.remove('active', 'bg-indigo-600', 'text-white'));
+                this.classList.add('active', 'bg-indigo-600', 'text-white');
+                
+                // Adjust example prompt based on content type
+                const promptTextarea = document.getElementById('prompt');
+                if (this.textContent === 'Blog Post') {
+                    promptTextarea.placeholder = 'e.g., Write a 500-word blog post about the benefits of sustainable energy for small businesses...';
+                } else if (this.textContent === 'Marketing Copy') {
+                    promptTextarea.placeholder = 'e.g., Create compelling marketing copy for our new eco-friendly product line...';
+                } else if (this.textContent === 'Product Description') {
+                    promptTextarea.placeholder = 'e.g., Write a detailed product description for our newest smartwatch model...';
+                } else if (this.textContent === 'Social Media Post') {
+                    promptTextarea.placeholder = 'e.g., Craft an engaging Instagram post announcing our summer sale...';
+                } else if (this.textContent === 'Email') {
+                    promptTextarea.placeholder = 'e.g., Draft a promotional email to announce our loyalty program to existing customers...';
+                }
+            });
+        });
+
+        // Advanced options toggle
+        document.getElementById('advanced-options-toggle').addEventListener('click', function() {
+            const options = document.getElementById('advanced-options');
+            options.classList.toggle('hidden');
+            const icon = this.querySelector('i:last-child');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-up');
+        });
+
+        // Token counter (estimate based on prompt length)
+        document.getElementById('prompt').addEventListener('input', function() {
+            const tokenCount = Math.ceil(this.value.length / 4); // Rough estimate
+            document.getElementById('token-counter').innerHTML = 
+                `Estimated tokens: <span class="font-bold text-indigo-400">${tokenCount}</span>`;
+        });
+
+        // Generate content button
+        document.getElementById('generate-btn').addEventListener('click', function(e) {
+            e.preventDefault();
+            const prompt = document.getElementById('prompt').value.trim();
+            
+            if (!prompt) {
+                alert('Please enter a prompt to generate content');
+                return;
+            }
+            
+            const generateText = document.getElementById('generate-text');
+            const generateLoader = document.getElementById('generate-loader');
+            const contentOutput = document.getElementById('content-output');
+            
+            // Show loading state
+            generateText.textContent = 'Generating...';
+            generateLoader.classList.remove('hidden');
+            this.disabled = true;
+            
+            // Simulate API call to OpenAI
+            setTimeout(() => {
+                // Sample generated content based on prompt
+                let generatedContent = `
+                    <div class="fade-in">
+                        <h2 class="text-2xl font-bold mb-4">${prompt.substring(0, 50)}...</h2>
+                        <p class="mb-4">Here is the AI-generated content based on your request. In a real implementation, this would connect to the OpenAI API to produce dynamic results tailored precisely to your needs.</p>
+                        <p class="mb-4">The content would vary based on the parameters you've selected (format, length, creativity level, tone, etc.). You could then edit, copy, download, or save this content directly from the interface.</p>
+                        <ul class="list-disc pl-5 mb-4">
+                            <li class="mb-2">First key point related to your request</li>
+                            <li class="mb-2">Second important aspect to consider</li>
+                            <li class="mb-2">Additional insight generated by AI</li>
+                        </ul>
+                        <p>This demonstrates just one possible format. The actual implementation would be much more sophisticated, leveraging the full power of the OpenAI API to create high-quality, customized content on demand.</p>
+                    </div>
+                `;
+                
+                // Update UI
+                contentOutput.innerHTML = generatedContent;
+                generateText.textContent = 'Generate Content';
+                generateLoader.classList.add('hidden');
+                this.disabled = false;
+                
+                // Update token count (simulated)
+                const tokenCount = Math.ceil(prompt.length); // Simple demo calculation
+                document.getElementById('token-count').textContent = `${500 - tokenCount} tokens`;
+            }, 2000); // Simulate API delay
+        });
+
+        // Content actions (copy, download, save)
+        document.getElementById('copy-btn').addEventListener('click', function() {
+            const content = document.getElementById('content-output').textContent;
+            navigator.clipboard.writeText(content);
+            const tooltip = this.querySelector('.tooltip-text') || document.createElement('span');
+            tooltip.textContent = 'Copied!';
+            tooltip.className = 'tooltip-text';
+            this.appendChild(tooltip);
+            setTimeout(() => tooltip.remove(), 2000);
+        });
+
+        document.getElementById('download-btn').addEventListener('click', function() {
+            const content = document.getElementById('content-output').textContent;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ai-generated-content.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('save-btn').addEventListener('click', function() {
+            if (!isLoggedIn) {
+                alert('Please login to save content');
+                document.getElementById('login-modal').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('save-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('close-save-modal').addEventListener('click', function() {
+            document.getElementById('save-modal').classList.add('hidden');
+        });
+
+        // Initialize token count
+        document.getElementById('token-count').textContent = '1000 tokens';
+    </script>
+</body>
+</html>
